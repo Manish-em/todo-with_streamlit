@@ -32,7 +32,7 @@ def create_table():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                task VARCHAR(255) NOT NULL,
+                description VARCHAR(255) NOT NULL,
                 status BOOLEAN DEFAULT FALSE
             )
         """)
@@ -57,7 +57,7 @@ def add_task(task):
     conn = create_connection()
     if conn is not None:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO tasks (description) VALUES (%s)", (task,))
+        cursor.execute("INSERT INTO tasks (description) VALUES (%s)", (task,))  
         conn.commit()
         cursor.close()
         conn.close()
@@ -67,7 +67,7 @@ def update_task(task_id, new_task):
     conn = create_connection()
     if conn is not None:
         cursor = conn.cursor()
-        cursor.execute("UPDATE tasks SET task = %s WHERE id = %s", (new_task, task_id))
+        cursor.execute("UPDATE tasks SET description = %s WHERE id = %s", (new_task, task_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -100,11 +100,14 @@ st.title("To-Do App")
 
 # Form to add a new task
 with st.form(key="new_task_form", clear_on_submit=True):
+    # Placeholder for success message
+    success_placeholder = st.empty()
     new_task = st.text_input("Enter a new task")
     submit_button = st.form_submit_button(label="Add Task")
     if submit_button and new_task:
         add_task(new_task)
-        st.success("Task added!")
+        success_placeholder.success("Task added!")
+        st.rerun()
 
 # Fetch and display tasks
 tasks = get_tasks()
@@ -126,16 +129,35 @@ if tasks:
 
         # Edit button
         if col3.button("Edit", key=f"edit_{task['id']}"):
-            new_value = st.text_input("Edit Task", value=task["description"], key=f"edit_input_{task['id']}")
-            if st.button("Save", key=f"save_{task['id']}"):
-                update_task(task["id"], new_value)
-                st.success("Task updated!")
-                st.rerun()
+            st.session_state['edit_task_id'] = task['id']
+            st.session_state['edit_task_description'] = task['description']
 
-        # Delete button
+        # Delete button with confirmation
         if col4.button("Delete", key=f"delete_{task['id']}"):
-            delete_task(task["id"])
-            st.success("Task deleted!")
+            st.session_state['delete_task_id'] = task['id']
+
+# Handle edit task
+if 'edit_task_id' in st.session_state:
+    with st.form(key="edit_task_form", clear_on_submit=True):
+        new_value = st.text_input("Edit Task", value=st.session_state['edit_task_description'], key="edit_input")
+        save_button = st.form_submit_button(label="Save")
+        if save_button:
+            update_task(st.session_state['edit_task_id'], new_value)
+            st.success("Task updated!")
+            del st.session_state['edit_task_id']
+            del st.session_state['edit_task_description']
             st.rerun()
-else:
+
+# Handle delete task
+if 'delete_task_id' in st.session_state:
+    with st.form(key="confirm_delete_form", clear_on_submit=True):
+        st.warning("Are you sure you want to delete this task?")
+        confirm_button = st.form_submit_button(label="Confirm Delete")
+        if confirm_button:
+            delete_task(st.session_state['delete_task_id'])
+            st.success("Task deleted!")
+            del st.session_state['delete_task_id']
+            st.rerun()
+
+if not tasks:
     st.info("No tasks found. Add a task above!")
